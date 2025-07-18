@@ -13,7 +13,6 @@ pub fn index() -> RawHtml<String> {
     let dir_string = get_file_structure("/media".to_string(), "".to_string(), true);
     RawHtml(dir_string)
 }
-#[allow(dead_code)]
 fn get_inside_files<P: AsRef<std::path::Path>>(file: P) -> String {
     fs::read_dir(file).unwrap().fold("".to_string(), |acc, v| {
         format!(
@@ -41,14 +40,33 @@ pub fn get_file_structure(location: String, start_string: String, last: bool) ->
         return "".into();
     }
 
-    let mut output = format!(
+    println!("location: {:?}", location);
+    let mut output: String = if location
+        .split('/')
+        .collect::<Vec<&str>>()
+        .last()
+        .unwrap()
+        .split('.')
+        .collect::<Vec<&str>>()
+        .last()
+        .unwrap()
+        == &"mp4"
+    {
+        format!(
+            "{}{}-<video width=75vw height=75vh controls> <source src=\"http://mari-rzepka.net:8000{}\" type=\"video/mp4\"></video>",
+            start_string,
+            if last { "└" } else { "├" },
+            location,
+        )
+    } else {
+        format!(
         "<pre style=\"margin:-2px;\">{}{}─<a href=\"http://mari-rzepka.net:8000{}\">{}</a></pre>",
         start_string,
         if last { "└" } else { "├" },
         location,
         location.split('/').collect::<Vec<&str>>().last().unwrap()
-    );
-
+    )
+    };
     let md = metadata(&location).unwrap();
     if md.is_dir() {
         let mut paths = fs::read_dir(location).unwrap();
@@ -76,6 +94,11 @@ pub fn get_file_structure(location: String, start_string: String, last: bool) ->
     }
 
     output
+}
+
+#[get("/video/<file..>")]
+pub fn get_video_player(file: PathBuf) -> RawHtml<String> {
+    return RawHtml(format!("<video height=200px controls> <source src=\"http://mari-rzepka.net:8000/{}\" type=\"video/mp4\"></video>",file.display()));
 }
 
 #[get("/browse/<location..>")]
@@ -116,12 +139,32 @@ pub fn get_pretty_directory(location: PathBuf) -> RawHtml<String> {
                 location.split('/').collect::<Vec<&str>>().last().unwrap()
             );
         } else {
-            output = format!(
-                "{}<pre style=\"margin:-2px;\">├ <a href=\"http://mari-rzepka.net:8000{}\">{}</a></pre>",
-                output,
-                location,
-                location.split('/').collect::<Vec<&str>>().last().unwrap()
-            );
+            output = if location
+                .split('/')
+                .collect::<Vec<&str>>()
+                .last()
+                .unwrap()
+                .split('.')
+                .collect::<Vec<&str>>()
+                .last()
+                .unwrap()
+                == &"mp4"
+            {
+                println!("{}", location);
+                format!(
+
+                "{}<pre style=\"margin:-2px;\">─<a href=\"http://mari-rzepka.net:8000/video/{}\">{}</a></pre>",
+                                    output,
+                                    location,
+        location.split('/').collect::<Vec<&str>>().last().unwrap()
+                                )
+            } else {
+                format!(
+        "{}<pre style=\"margin:-2px;\">─<a href=\"http://mari-rzepka.net:8000{}\">{}</a></pre>",
+        output, location,
+        location.split('/').collect::<Vec<&str>>().last().unwrap()
+    )
+            };
         }
     }
 
@@ -150,7 +193,7 @@ fn rocket() -> _ {
 
     rocket::build()
         .attach(cors)
-        .mount("/", routes![index, get_pretty_directory])
+        .mount("/", routes![index, get_pretty_directory, get_video_player])
         .mount("/media", FileServer::from("/media"))
 }
 mod testlib;
